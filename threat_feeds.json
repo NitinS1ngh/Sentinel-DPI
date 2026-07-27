@@ -1,0 +1,26 @@
+{
+  "update_interval_hours": 12,
+  "feeds": [
+    {
+      "name": "Local Seed Feed",
+      "enabled": true,
+      "type": "json",
+      "path": "threats.seed.json",
+      "version": "local"
+    },
+    {
+      "name": "OpenPhish Placeholder",
+      "enabled": true,
+      "type": "domain-list",
+      "url": "https://openphish.com/feed.txt",
+      "version": "live-online"
+    },
+    {
+      "name": "URLHaus Placeholder",
+      "enabled": true,
+      "type": "domain-list",
+      "url": "https://urlhaus.abuse.ch/downloads/hostfile/",
+      "version": "live-online"
+    }
+  ]
+}

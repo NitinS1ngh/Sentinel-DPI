@@ -1,0 +1,9 @@
+{
+  "firewall_backend": "pf",
+  "threat_intelligence_enabled": true,
+  "automatic_threat_updates_enabled": true,
+  "security_analysis_enabled": true,
+  "threat_update_interval_seconds": 43200,
+  "threat_feed_registry": "threat_feeds.json",
+  "threat_feed_output": "threats.json"
+}

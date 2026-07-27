@@ -1,0 +1,31 @@
+# ── Runtime database (auto-created, can be 100MB+) ──────────────────────────
+sentinel.db
+sentinel.db-shm
+sentinel.db-wal
+
+# ── IDE / editor indexes ──────────────────────────────────────────────────────
+backend/.cache/
+.vscode/
+
+# ── Auto-generated threat data (rebuilt from feeds on startup) ───────────────
+threats.json
+
+# ── Personal / local config (not source code) ────────────────────────────────
+blocked_domains.txt
+monitored_domains.txt
+
+# ── Runtime feed cache ────────────────────────────────────────────────────────
+.sentinel-feeds/
+
+# ── C++ build output ──────────────────────────────────────────────────────────
+build/
+*.o
+*.a
+*.dylib
+
+# ── Frontend dependencies & build output ─────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+
+# ── macOS noise ───────────────────────────────────────────────────────────────
+.DS_Store

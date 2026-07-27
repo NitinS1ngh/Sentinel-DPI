@@ -1,0 +1,32 @@
+[
+  {
+    "domain": "evil-example.com",
+    "category": "Phishing",
+    "severity": "Critical",
+    "description": "Credential harvesting"
+  },
+  {
+    "domain": "*.login-security-alert.com",
+    "category": "Phishing",
+    "severity": "High",
+    "description": "Brand impersonation"
+  },
+  {
+    "domain": "*.malware-downloads.net",
+    "category": "Malware",
+    "severity": "Critical",
+    "description": "Payload distribution"
+  },
+  {
+    "domain": "phish.example.org",
+    "category": "Credential Theft",
+    "severity": "Medium",
+    "description": "Suspicious login page"
+  },
+  {
+    "domain": "*.tracking-danger.io",
+    "category": "Tracking",
+    "severity": "Low",
+    "description": "Known tracker infrastructure"
+  }
+]
