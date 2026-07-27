@@ -2,30 +2,30 @@
 
 ---
 
-**Sentinel DPI is a local, system-wide network security engine I built that runs entirely on your machine.** I placed it between the network interfaces and the outside world — it reads raw packets off the wire before they leave the machine, identifies what domains and services the system is trying to reach, and — if those destinations are malicious or blocked by policy — cuts the connection dead at the kernel level using macOS's built-in `pf` firewall.
+**Sentinel DPI is a local, system-wide network security engine that runs entirely on your machine.** It sits between the network interfaces and the outside world — reading raw packets off the wire before they leave the machine, identifying what domains and services the system is trying to reach, and — if those destinations are malicious or blocked by policy — cutting the connection dead at the kernel level using macOS's built-in `pf` firewall.
 
-This is **not** a VPN. It is **not** a DNS sinkhole. I built it to operate at a lower level than both: it reads raw packets directly from the network adapter using `libpcap`, parses DNS queries and TLS handshakes out of them, and enforces decisions using kernel firewall rules.
+This is **not** a VPN. It is **not** a DNS sinkhole. It operates at a lower level than both: it reads raw packets directly from the network adapter using `libpcap`, parses DNS queries and TLS handshakes out of them, and enforces decisions using kernel firewall rules.
 
 ---
 
 ## What Problem Does It Solve?
 
-| Problem | How I Addressed It |
+| Problem | How Sentinel DPI Addresses It |
 |---|---|
-| VPNs route traffic through a tunnel, bypassing traditional host-based inspection | I capture `utun*` interfaces (macOS VPN tunnel adapters) before encryption happens |
-| DNS-based blockers can be bypassed by hardcoded IPs | I combine DNS inspection with TLS SNI inspection so hostnames are extracted from both protocols |
-| Threat intelligence databases go stale | I auto-fetch updated feeds (OpenPhish, URLHaus) on a configurable schedule and reload them live without restarting |
-| No visibility into what your own machine is actually doing on the network | I built a real-time dashboard showing every packet, its domain, IPs, and protocol as they happen |
+| VPNs route traffic through a tunnel, bypassing traditional host-based inspection | Captures `utun*` interfaces (macOS VPN tunnel adapters) before encryption happens |
+| DNS-based blockers can be bypassed by hardcoded IPs | Combines DNS inspection with TLS SNI inspection so hostnames are extracted from both protocols |
+| Threat intelligence databases go stale | Auto-fetches updated feeds (OpenPhish, URLHaus) on a configurable schedule and reloads them live without restarting |
+| No visibility into what your own machine is actually doing on the network | Provides a real-time dashboard showing every packet, its domain, IPs, and protocol as they happen |
 
 ---
 
-## How I Built It — The Full Pipeline
+## How It Works — The Full Pipeline
 
 Here is the journey a single packet takes from the wire to the dashboard:
 
 ### 1. Packet Capture (`CaptureEngine`)
 
-At startup, I enumerate every active network interface — both physical adapters like `en0` (Wi-Fi) and virtual VPN tunnel interfaces like `utun0`, `utun1`, `utun2`. I open a raw `libpcap` capture handle on each one and spin up a dedicated OS thread per interface, all capturing concurrently.
+At startup, every active network interface is enumerated — both physical adapters like `en0` (Wi-Fi) and virtual VPN tunnel interfaces like `utun0`, `utun1`, `utun2`. A raw `libpcap` capture handle is opened on each one and a dedicated OS thread is spun up per interface, all capturing concurrently.
 
 Each thread runs `pcap_loop()`, which fires a callback for every packet that arrives on that interface. **This happens before the packet is processed by any higher-level OS network stack.** All threads share a mutex-protected write path into the database and event broadcaster.
 
@@ -33,23 +33,23 @@ Each thread runs `pcap_loop()`, which fires a callback for every packet that arr
 
 ### 2. Protocol Parsing — DNS & TLS SNI
 
-I parse raw Ethernet frames to extract IP-layer source and destination addresses, then look for two types of payloads:
+Raw Ethernet frames are parsed to extract IP-layer source and destination addresses, then the engine looks for two types of payloads:
 
-- **DNS queries (UDP port 53)**: My `DNSAnalyzer` parses the DNS wire format to extract the queried hostnames. When the machine asks "what is the IP of youtube.com?", that query appears as a DNS packet and I read the domain name directly from it.
+- **DNS queries (UDP port 53)**: The `DNSAnalyzer` parses the DNS wire format to extract the queried hostnames. When the machine asks "what is the IP of example.com?", that query appears as a DNS packet and the domain name is read directly from it.
 
-- **TLS Client Hello (TCP port 443)**: When a browser or app initiates an HTTPS connection, it sends a `ClientHello` message containing a **Server Name Indication (SNI)** extension — a plaintext field that tells the server which hostname is being requested. I parse the TLS handshake and extract the SNI hostname. This works even for HTTPS because SNI is transmitted before encryption is negotiated.
+- **TLS Client Hello (TCP port 443)**: When a browser or app initiates an HTTPS connection, it sends a `ClientHello` message containing a **Server Name Indication (SNI)** extension — a plaintext field that tells the server which hostname is being requested. The TLS handshake is parsed and the SNI hostname is extracted. This works even for HTTPS because SNI is transmitted before encryption is negotiated.
 
-Once a hostname is extracted, I pass it to the evaluation pipeline.
+Once a hostname is extracted, it is passed to the evaluation pipeline.
 
 ### 3. Policy Evaluation (`PolicyEngine`)
 
-My `PolicyEngine` loads two plain-text files from the project root:
+The `PolicyEngine` loads two plain-text files from the project root:
 - `blocked_domains.txt` — domains to block
 - `monitored_domains.txt` — domains to watch but not block
 
-**Hot reload**: I check the file modification timestamp before every evaluation. If `blocked_domains.txt` is edited while the daemon is running, the new rules are picked up automatically on the next packet — no restart needed.
+**Hot reload**: The file modification timestamp is checked before every evaluation. If `blocked_domains.txt` is edited while the daemon is running, the new rules are picked up automatically on the next packet — no restart needed.
 
-**Subdomain matching**: I support both exact matches and wildcard rules. Adding `youtube.com` to `blocked_domains.txt` will match `youtube.com`, `www.youtube.com`, `music.youtube.com`, `accounts.youtube.com`, etc. I build suffix lookup tables for O(1) evaluation per packet.
+**Subdomain matching**: Both exact matches and wildcard rules are supported. Adding `example.com` to `blocked_domains.txt` will match `example.com`, `www.example.com`, `api.example.com`, `cdn.example.com`, etc. Suffix lookup tables are built for O(1) evaluation per packet.
 
 **Two match types**:
 - `BLOCKED` — domain is in the block list
@@ -57,9 +57,9 @@ My `PolicyEngine` loads two plain-text files from the project root:
 
 ### 4. Threat Intelligence Matching (`ThreatIntelEngine`)
 
-In parallel with policy evaluation, I check the extracted hostname against a local indicator database loaded from `threats.json`. This file is a merged collection of threat indicators, each with a domain, category (e.g. `Phishing`, `Malware`, `Command & Control`), severity (`Low`, `Medium`, `High`, `Critical`), and description.
+In parallel with policy evaluation, the extracted hostname is checked against a local indicator database loaded from `threats.json`. This file is a merged collection of threat indicators, each with a domain, category (e.g. `Phishing`, `Malware`, `Command & Control`), severity (`Low`, `Medium`, `High`, `Critical`), and description.
 
-I maintain two in-memory hash maps:
+Two in-memory hash maps are maintained:
 - **Exact rules** — direct domain matches
 - **Wildcard rules** — suffix-based matches (e.g. all subdomains of a known malicious registrar)
 
@@ -67,7 +67,7 @@ Like the policy engine, this hot-reloads when `threats.json` changes on disk —
 
 ### 5. Blocking (`BlockingEngine` + `MacOSPfBackend`)
 
-When a domain is flagged as `BLOCKED` (either by policy or by threat intelligence matching a known-malicious indicator), my `BlockingEngine` takes over.
+When a domain is flagged as `BLOCKED` (either by policy or by threat intelligence matching a known-malicious indicator), the `BlockingEngine` takes over.
 
 It calls `MacOSPfBackend::blockDomain()`, which:
 1. Performs a live DNS resolution of the domain using `getaddrinfo()` to get its current IP addresses
@@ -83,7 +83,7 @@ This happens at the **kernel routing layer** — below any application, browser,
 
 ### 6. Persistence (`Database` — SQLite3)
 
-I write every event to `sentinel.db`, a local SQLite3 database. The schema stores:
+Every event is written to `sentinel.db`, a local SQLite3 database. The schema stores:
 - Traffic events (domain, source IP, destination IP, protocol, timestamp)
 - Policy match events
 - Threat match events
@@ -95,7 +95,7 @@ This gives the frontend historical data to display — charts, leaderboards, and
 
 ### 7. Real-Time Event Delivery (`EventBroadcaster` + `ApiServer`)
 
-I built a simple in-process pub/sub hub called `EventBroadcaster`. Every time a significant event occurs (a packet is captured, a domain is blocked, a threat is matched), the relevant subsystem emits a JSON payload to the broadcaster.
+A simple in-process pub/sub hub called `EventBroadcaster` handles real-time delivery. Every time a significant event occurs (a packet is captured, a domain is blocked, a threat is matched), the relevant subsystem emits a JSON payload to the broadcaster.
 
 The `ApiServer` runs a hand-written HTTP/1.1 server on port 8080 — no external web framework, just pure POSIX sockets. It serves two categories of endpoints:
 - **REST endpoints** (`/api/events`, `/api/threats`, `/api/firewall/rules`, etc.) — query the SQLite database and return JSON
@@ -290,13 +290,13 @@ All configuration files live in the **project root** and are read by the daemon 
 One domain per line. Lines starting with `#` are comments. Case-insensitive. Wildcard prefix (`*.`) matches all subdomains.
 
 ```
-# Exact match — blocks youtube.com and all its subdomains
-youtube.com
+# Exact match — blocks example.com and all its subdomains
+example.com
 
 # Explicit subdomain block
-www.cricbuzz.com
+www.social-media.com
 
-# Wildcard — blocks anything.malicious-cdn.com
+# Wildcard — blocks anything under a known malicious domain
 *.malicious-cdn.com
 ```
 
@@ -351,31 +351,31 @@ The updater merges all feeds into `threats.json`. The `ThreatIntelEngine` detect
 
 ## 🛡️ How the macOS PF Firewall Integration Works
 
-macOS ships with a stateful packet filter (`pf`) inherited from BSD. By default it is mostly passive. I activate it at runtime and inject rules into a named anchor (`sentineldpi`) — I never touch `/etc/pf.conf` permanently.
+macOS ships with a stateful packet filter (`pf`) inherited from BSD. By default it is mostly passive. Sentinel DPI activates it at runtime and injects rules into a named anchor (`sentineldpi`) — `/etc/pf.conf` is never permanently modified.
 
 **On startup:**
 ```bash
 # Enable pf if it was not already running
 pfctl -e
 
-# Append my anchor declaration to the existing ruleset and load it
+# Append the anchor declaration to the existing ruleset and load it
 (cat /etc/pf.conf; echo 'anchor "sentineldpi/*"') | pfctl -f -
 ```
 
 **When blocking a domain:**
-1. I resolve the domain to all its current IPv4/IPv6 addresses using `getaddrinfo()`
-2. I write a rule file to `/tmp/sentineldpi_pf_anchor.conf`:
+1. The domain is resolved to all its current IPv4/IPv6 addresses using `getaddrinfo()`
+2. A rule file is written to `/tmp/sentineldpi_pf_anchor.conf`:
    ```
-   # youtube.com
-   block drop quick to { 142.250.80.46, 2607:f8b0:4004:c09::5e }
+   # blocked-site.com
+   block drop quick to { 93.184.216.34, 2606:2800:220:1:248:1893:25c8:1946 }
    ```
-3. I load it into the kernel:
+3. The file is loaded into the kernel:
    ```bash
    pfctl -a sentineldpi/blocklist -f /tmp/sentineldpi_pf_anchor.conf
    ```
 
 **On clean shutdown:**
-I flush all rules in the `sentineldpi` anchor. The system's `/etc/pf.conf` is **never modified** — all changes are runtime-only and disappear when the daemon exits.
+All rules in the `sentineldpi` anchor are flushed. The system's `/etc/pf.conf` is **never modified** — all changes are runtime-only and disappear when the daemon exits.
 
 ---
 
@@ -462,8 +462,8 @@ The daemon exposes a JSON API on **port 8080**:
 
 ## 📝 Notes
 
-- **Hot-reload without restart**: Both `PolicyEngine` and `ThreatIntelEngine` check file modification timestamps before each evaluation and reload automatically if anything changed. I can edit `blocked_domains.txt` mid-session and the new rules kick in immediately.
-- **No persistent system changes**: I never modify `/etc/pf.conf`. All pf rules live in the `sentineldpi` anchor and are flushed when the daemon exits.
-- **Thread model**: I spin up one `std::thread` per active network interface in `CaptureEngine`. All threads share the database and broadcaster through mutex-protected paths.
+- **Hot-reload without restart**: Both `PolicyEngine` and `ThreatIntelEngine` check file modification timestamps before each evaluation and reload automatically if anything changed. Edits to `blocked_domains.txt` take effect on the very next packet — no restart needed.
+- **No persistent system changes**: `/etc/pf.conf` is never modified. All pf rules live in the `sentineldpi` anchor and are flushed when the daemon exits.
+- **Thread model**: One `std::thread` is spawned per active network interface in `CaptureEngine`. All threads share the database and broadcaster through mutex-protected paths.
 - **Database location**: `sentinel.db` is created in the current working directory at startup — always run the daemon from the project root.
 - **Graceful stop**: Press **Enter** in the daemon terminal. Avoid `Ctrl+C` for a clean shutdown — `SIGINT` skips the cleanup path and leaves pf rules loaded in the kernel.
