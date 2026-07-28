@@ -8,6 +8,13 @@ This is **not** a VPN. It is **not** a DNS sinkhole. It operates at a lower leve
 
 ---
 
+## 🎥 Demo Videos
+
+- 📹 Project Overview: [Watch Demo](https://github.com/NitinS1ngh/Sentinel-DPI/releases/download/v1.0.0/Screen.Recording.2026-07-26.at.6.35.43.PM.mov)
+- 🛡️ Blocking Demo: [Watch Demo](https://github.com/NitinS1ngh/Sentinel-DPI/releases/download/v1.0.0/Screen.Recording.2026-07-26.at.7.02.17.PM.mov)
+  
+---
+
 ## What Problem Does It Solve?
 
 | Problem | How Sentinel DPI Addresses It |
