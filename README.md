@@ -308,11 +308,6 @@ Hot-reloaded: edit and save while the daemon is running — new rules apply on t
 
 Same format as `blocked_domains.txt`. Traffic to these domains is **logged and alerted** in the dashboard but is not dropped by the firewall.
 
-```
-github.com
-linkedin.com
-```
-
 ---
 
 ### `threat_feeds.json`
